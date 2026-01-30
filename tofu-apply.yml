@@ -1,0 +1,35 @@
+name: OpenTofu Apply (VMware K8s)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  apply:
+    runs-on: self-hosted
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # REQUIRED for JS-based GitHub Actions on self-hosted runners
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install OpenTofu
+      uses: opentofu/setup-opentofu@v1
+
+    - name: Restore kubeconfig
+      run: |
+        echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > kubeconfig
+        chmod 600 kubeconfig
+
+    - name: OpenTofu Init
+      working-directory: infra
+      run: tofu init
+
+    - name: OpenTofu Apply
+      working-directory: infra
+      run: tofu apply -auto-approve -var="kubeconfig_path=../kubeconfig"
