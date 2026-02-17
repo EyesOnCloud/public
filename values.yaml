@@ -1,0 +1,21 @@
+blue:
+  replicaCount: 4
+  image:
+    repository: eyesoncloud/web-app
+    tag: v1
+  ingress:
+    enabled: false
+
+green:
+  replicaCount: 3
+  image:
+    repository: eyesoncloud/web-app
+    tag: v2
+  ingress:
+    enabled: false
+
+serviceSelectorColor: blue
+service:
+  type: NodePort
+  nodePort: 30010
+  port: 80
