@@ -1,0 +1,27 @@
+{{- range \$color, \$config := dict "blue" .Values.blue "green" .Values.green }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app-{{ \$color }}
+  labels:
+    app: {{ \$color }}-webserver
+spec:
+  replicas: {{ \$config.replicaCount }}
+  selector:
+    matchLabels:
+      app: webserver
+      ver: {{ \$color }}
+  template:
+    metadata:
+      labels:
+        app: webserver
+        ver: {{ \$color }}
+    spec:
+      containers:
+        - name: webserver-container
+          image: "{{ \$config.image.repository }}:{{ \$config.image.tag }}"
+
+---
+
+{{- end }}
