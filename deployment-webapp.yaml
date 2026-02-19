@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: usermgmt-webapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: usermgmt-webapp
+  template:
+    metadata:
+      labels:
+        app: usermgmt-webapp
+    spec:
+      initContainers:
+        - name: init-db
+          image: busybox:1.31
+          command:
+            - sh
+            - -c
+            - >
+              echo "Checking for MySQL...";
+              while ! nc -z mysql 3306; do sleep 1; done;
+              echo "MySQL is up!"
+      containers:
+        - name: usermgmt-webapp
+          image: "{{ .Values.webapp.image.repository }}:{{ .Values.webapp.image.tag }}"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: {{ .Values.webapp.service.targetPort }}
+          env:
+            - name: DB_HOSTNAME
+              value: "mysql"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_NAME
+              value: "{{ .Values.mysql.dbName }}"
+            - name: DB_USERNAME
+              value: "root"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: root-password
