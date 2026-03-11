@@ -1,0 +1,34 @@
+stages:
+  - plan
+  - apply
+
+image: ubuntu:22.04
+
+before_script:
+  - apt-get update
+  - apt-get install -y curl unzip base64
+  - curl -fsSL https://get.opentofu.org/install-opentofu.sh | sh
+  - tofu version
+
+plan:
+  stage: plan
+  script:
+    - echo "$KUBECONFIG_B64" | base64 -d > kubeconfig
+    - chmod 600 kubeconfig
+    - cd infra
+    - tofu init
+    - tofu plan -var="kubeconfig_path=../kubeconfig"
+  only:
+    - main
+
+apply:
+  stage: apply
+  script:
+    - echo "$KUBECONFIG_B64" | base64 -d > kubeconfig
+    - chmod 600 kubeconfig
+    - cd infra
+    - tofu init
+    - tofu apply -auto-approve -var="kubeconfig_path=../kubeconfig"
+  only:
+    - main
+  when: manual
