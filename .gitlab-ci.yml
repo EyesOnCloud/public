@@ -2,12 +2,10 @@ stages:
   - plan
   - apply
 
-image: ubuntu:22.04
-
 before_script:
   - apt-get update
-  - apt-get install -y curl unzip base64
-  - curl -fsSL https://get.opentofu.org/install-opentofu.sh | sh
+  - apt-get install -y curl unzip gnupg
+  - curl -fsSL https://get.opentofu.org/install-opentofu.sh | sh -s -- --install-method standalone
   - tofu version
 
 plan:
@@ -23,6 +21,8 @@ plan:
 
 apply:
   stage: apply
+  tags:
+  - eoc-runner
   script:
     - echo "$KUBECONFIG_B64" | base64 -d > kubeconfig
     - chmod 600 kubeconfig
