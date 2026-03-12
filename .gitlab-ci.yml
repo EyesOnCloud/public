@@ -2,33 +2,40 @@ stages:
   - plan
   - apply
 
-before_script:
-  - apt-get update
-  - apt-get install -y curl unzip gnupg
-  - curl -fsSL https://get.opentofu.org/install-opentofu.sh | sh -s -- --install-method standalone
-  - tofu version
+image:
+  name: ghcr.io/opentofu/opentofu:latest
+  entrypoint: [""]
+
+variables:
+  TF_STATE_NAME: eoc-k8s-state
+  TF_HTTP_USERNAME: gitlab-ci-token
+  TF_HTTP_PASSWORD: $CI_JOB_TOKEN
+  GIT_DEPTH: 0
+  GIT_STRATEGY: fetch
+  GIT_CHECKOUT: "true"
 
 plan:
   stage: plan
+  tags:
+    - eoc-runner
   script:
     - echo "$KUBECONFIG_B64" | base64 -d > kubeconfig
-    - chmod 600 kubeconfig
     - cd infra
-    - tofu init
-    - tofu plan -var="kubeconfig_path=../kubeconfig"
-  only:
-    - main
+    - tofu init -backend-config="address=https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/terraform/state/$TF_STATE_NAME" -backend-config="lock_address=https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/terraform/state/$TF_STATE_NAME/lock" -backend-config="unlock_address=https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/terraform/state/$TF_STATE_NAME/lock" -backend-config="lock_method=POST" -backend-config="unlock_method=DELETE"
+    - tofu plan -out=tfplan -var="kubeconfig_path=../kubeconfig"
+  artifacts:
+    paths:
+      - infra/tfplan
 
 apply:
   stage: apply
   tags:
-  - eoc-runner
+    - eoc-runner
+  dependencies:
+    - plan
   script:
     - echo "$KUBECONFIG_B64" | base64 -d > kubeconfig
-    - chmod 600 kubeconfig
     - cd infra
-    - tofu init
-    - tofu apply -auto-approve -var="kubeconfig_path=../kubeconfig"
-  only:
-    - main
+    - tofu init -backend-config="address=https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/terraform/state/$TF_STATE_NAME" -backend-config="lock_address=https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/terraform/state/$TF_STATE_NAME/lock" -backend-config="unlock_address=https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/terraform/state/$TF_STATE_NAME/lock" -backend-config="lock_method=POST" -backend-config="unlock_method=DELETE"
+    - tofu apply -auto-approve tfplan
   when: manual
