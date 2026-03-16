@@ -1,0 +1,382 @@
+
+stages:
+  - preflight
+  - setup
+  - deploy-stable
+  - deploy-canary
+  - traffic-10-canary
+  - traffic-25-canary
+  - traffic-100-canary
+  - verify
+
+# =============================================================================
+# Default block — applies to EVERY job in the pipeline.
+# Image: bitnami/kubectl (confirmed working in your connect stage).
+# before_script: sets the agent context so kubectl works in all jobs.
+# =============================================================================
+default:
+  image:
+    name: bitnami/kubectl:latest
+    entrypoint: [""]
+  before_script:
+    - |
+      echo "Setting cluster context via GitLab Agent..."
+      kubectl config get-contexts
+      kubectl config use-context EyesOnCloud/canary-release:eoc-cluster
+      kubectl config set-context --current --namespace="${KUBE_NAMESPACE}"
+      echo "Context set. Verifying connectivity..."
+      kubectl cluster-info
+      echo "Connected to cluster. Namespace: ${KUBE_NAMESPACE}"
+
+# =============================================================================
+# STAGE: preflight
+# =============================================================================
+preflight-checks:
+  stage: preflight
+  script:
+    - |
+      echo "=== Preflight Check 2: Node readiness ==="
+      kubectl get nodes
+      echo "All nodes are Ready."
+    - |
+      echo "=== Preflight Check 3: Istio control plane ==="
+      kubectl get pods -n istio-system
+      ISTIOD_READY=$(kubectl get pods -n istio-system -l app=istiod --no-headers | grep "Running" | wc -l)
+      if [ "$ISTIOD_READY" -lt "1" ]; then
+        echo "ERROR: istiod is not running. Istio control plane is unhealthy."
+        exit 1
+      fi
+      echo "Istio control plane is healthy."
+    - |
+      echo "=== Preflight Check 4: Istio CRDs ==="
+      VS_CRD=$(kubectl get crd virtualservices.networking.istio.io --no-headers 2>/dev/null | wc -l)
+      DR_CRD=$(kubectl get crd destinationrules.networking.istio.io --no-headers 2>/dev/null | wc -l)
+      GW_CRD=$(kubectl get crd gateways.networking.istio.io --no-headers 2>/dev/null | wc -l)
+      if [ "$VS_CRD" -lt "1" ] || [ "$DR_CRD" -lt "1" ] || [ "$GW_CRD" -lt "1" ]; then
+        echo "ERROR: One or more Istio CRDs are missing."
+        exit 1
+      fi
+      echo "All required Istio CRDs are present."
+    - |
+      echo "=== Preflight Check 5: Namespace sidecar injection label ==="
+      INJECTION=$(kubectl get namespace "${KUBE_NAMESPACE}" \
+        -o jsonpath='{.metadata.labels.istio-injection}' 2>/dev/null)
+      if [ "$INJECTION" != "enabled" ]; then
+        echo "WARNING: Namespace missing istio-injection=enabled. Applying now..."
+        kubectl label namespace "${KUBE_NAMESPACE}" istio-injection=enabled --overwrite
+      fi
+      echo "Namespace injection label confirmed."
+    - |
+      echo "=== All preflight checks passed ==="
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# STAGE: setup
+# =============================================================================
+setup-infrastructure:
+  stage: setup
+  script:
+    - |
+      echo "Applying namespace manifest..."
+      kubectl apply -f k8s/namespace.yaml
+    - |
+      echo "Applying RBAC for CI ServiceAccount..."
+      kubectl apply -f k8s/rbac.yaml
+    - |
+      echo "Applying Istio Gateway..."
+      kubectl apply -f k8s/gateway.yaml
+    - |
+      echo "Applying Istio DestinationRule..."
+      kubectl apply -f k8s/destination-rule.yaml
+    - |
+      echo "Verifying Istio resources applied..."
+      kubectl get gateway -n "${KUBE_NAMESPACE}"
+      kubectl get destinationrule -n "${KUBE_NAMESPACE}"
+    - |
+      echo "Running istioctl config analysis..."
+      if ! command -v istioctl > /dev/null 2>&1; then
+        curl -sL https://istio.io/downloadIstio | ISTIO_VERSION=1.20.0 sh -
+        export PATH="${PWD}/istio-1.20.0/bin:${PATH}"
+      fi
+      istioctl analyze -n "${KUBE_NAMESPACE}" --failure-threshold warning
+      echo "Infrastructure setup complete."
+  needs:
+    - preflight-checks
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# STAGE: deploy-stable
+# =============================================================================
+deploy-stable:
+  stage: deploy-stable
+  script:
+    - |
+      echo "Deploying Kubernetes Service..."
+      kubectl apply -f k8s/service.yaml
+    - |
+      echo "Deploying stable application (eyesoncloud/test-prod:latest)..."
+      kubectl apply -f k8s/deployment-v1.yaml
+    - |
+      echo "Waiting for stable rollout to complete (timeout: 180s)..."
+      kubectl rollout status deployment/myapp-stable -n "${KUBE_NAMESPACE}" --timeout=180s
+    - |
+      echo "Applying initial traffic rule: 100% stable, 0% canary..."
+      kubectl apply -f k8s/virtual-service-100-0.yaml
+    - |
+      echo "Verifying Service endpoints are populated..."
+      sleep 5
+      ENDPOINTS=$(kubectl get endpoints myapp-svc -n "${KUBE_NAMESPACE}" \
+        -o jsonpath='{.subsets[0].addresses}' 2>/dev/null)
+      if [ -z "$ENDPOINTS" ]; then
+        echo "WARNING: Service endpoints not yet populated."
+        kubectl get pods -n "${KUBE_NAMESPACE}" -l version=stable
+      else
+        echo "Service endpoints confirmed."
+      fi
+    - |
+      echo "=== Stable Deployment Summary ==="
+      kubectl get pods -n "${KUBE_NAMESPACE}" -l version=stable -o wide
+      kubectl get virtualservice myapp-vs -n "${KUBE_NAMESPACE}" -o yaml
+  needs:
+    - setup-infrastructure
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# STAGE: deploy-canary
+# =============================================================================
+deploy-canary:
+  stage: deploy-canary
+  script:
+    - |
+      echo "Deploying canary application (eyesoncloud/test-canary:latest)..."
+      kubectl apply -f k8s/deployment-v2.yaml
+    - |
+      echo "Waiting for canary rollout to complete (timeout: 180s)..."
+      kubectl rollout status deployment/myapp-canary -n "${KUBE_NAMESPACE}" --timeout=180s
+    - |
+      echo "Verifying canary pods have Istio sidecar injected..."
+      CONTAINERS=$(kubectl get pods -n "${KUBE_NAMESPACE}" -l version=canary \
+        -o jsonpath='{.items[0].status.containerStatuses}' \
+        | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d))" 2>/dev/null || echo "0")
+      echo "Container count per canary pod: ${CONTAINERS} (expected: 2 — app + istio-proxy)"
+      if [ "$CONTAINERS" = "1" ]; then
+        echo "ERROR: Canary pods have only 1 container. Istio sidecar was NOT injected."
+        exit 1
+      fi
+      echo "Sidecar injection confirmed."
+    - |
+      echo "Traffic is still 100% on stable. Canary pods are dark (zero traffic)."
+      kubectl get pods -n "${KUBE_NAMESPACE}" -l app=myapp -o wide
+    - |
+      kubectl describe deployment myapp-canary -n "${KUBE_NAMESPACE}" | grep -A5 "Conditions:"
+  needs:
+    - deploy-stable
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# STAGE: traffic-10-canary — MANUAL GATE
+# =============================================================================
+shift-traffic-10-canary:
+  stage: traffic-10-canary
+  script:
+    - |
+      echo "Shifting traffic: 90% stable, 10% canary..."
+      kubectl apply -f k8s/virtual-service-90-10.yaml
+    - |
+      echo "Waiting 10 seconds for Istio to propagate routing update..."
+      sleep 10
+    - |
+      echo "Verifying VirtualService update..."
+      kubectl get virtualservice myapp-vs -n "${KUBE_NAMESPACE}" -o yaml
+    - |
+      echo "Checking Istio proxy sync status..."
+      if ! command -v istioctl > /dev/null 2>&1; then
+        curl -sL https://istio.io/downloadIstio | ISTIO_VERSION=1.20.0 sh -
+        export PATH="${PWD}/istio-1.20.0/bin:${PATH}"
+      fi
+      istioctl proxy-status
+    - |
+      kubectl get pods -n "${KUBE_NAMESPACE}" -l app=myapp --show-labels
+  needs:
+    - deploy-canary
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+canary-health-check-10:
+  stage: traffic-10-canary
+  script:
+    - |
+      echo "Running canary health check at 10% traffic exposure..."
+      echo "Waiting 30 seconds to accumulate traffic data..."
+      sleep 30
+    - |
+      CANARY_POD=$(kubectl get pod -n "${KUBE_NAMESPACE}" -l version=canary \
+        -o jsonpath='{.items[0].metadata.name}')
+      echo "Querying Envoy stats from canary pod: ${CANARY_POD}"
+
+      ERROR_COUNT=$(kubectl exec -n "${KUBE_NAMESPACE}" "${CANARY_POD}" \
+        -c istio-proxy -- pilot-agent request GET stats 2>/dev/null \
+        | grep "upstream_rq_5xx" \
+        | grep "inbound" \
+        | awk -F'|' '{print $NF}' \
+        | awk '{sum += $1} END {print int(sum)}' 2>/dev/null || echo "0")
+
+      echo "Canary inbound 5xx error count : ${ERROR_COUNT}"
+      echo "Configured error threshold      : ${ERROR_THRESHOLD}"
+
+      if [ "${ERROR_COUNT}" -gt "${ERROR_THRESHOLD}" ]; then
+        echo "ERROR THRESHOLD EXCEEDED — initiating automatic rollback."
+        kubectl apply -f k8s/virtual-service-100-0.yaml
+        echo "Rollback applied. All traffic returned to stable (v1)."
+        exit 1
+      fi
+      echo "Health check passed. Error count (${ERROR_COUNT}) within threshold (${ERROR_THRESHOLD})."
+    - |
+      kubectl get pods -n "${KUBE_NAMESPACE}" -l version=canary
+  needs:
+    - shift-traffic-10-canary
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# STAGE: traffic-25-canary — MANUAL GATE
+# =============================================================================
+shift-traffic-25-canary:
+  stage: traffic-25-canary
+  script:
+    - |
+      echo "Expanding canary traffic: 75% stable, 25% canary..."
+      kubectl apply -f k8s/virtual-service-75-25.yaml
+    - |
+      sleep 10
+      kubectl get virtualservice myapp-vs -n "${KUBE_NAMESPACE}" -o yaml
+    - |
+      if ! command -v istioctl > /dev/null 2>&1; then
+        curl -sL https://istio.io/downloadIstio | ISTIO_VERSION=1.20.0 sh -
+        export PATH="${PWD}/istio-1.20.0/bin:${PATH}"
+      fi
+      istioctl proxy-status
+    - |
+      kubectl get pods -n "${KUBE_NAMESPACE}" -l app=myapp -o wide
+  needs:
+    - canary-health-check-10
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+canary-health-check-25:
+  stage: traffic-25-canary
+  script:
+    - |
+      echo "Running canary health check at 25% traffic exposure..."
+      sleep 30
+    - |
+      CANARY_POD=$(kubectl get pod -n "${KUBE_NAMESPACE}" -l version=canary \
+        -o jsonpath='{.items[0].metadata.name}')
+
+      ERROR_COUNT=$(kubectl exec -n "${KUBE_NAMESPACE}" "${CANARY_POD}" \
+        -c istio-proxy -- pilot-agent request GET stats 2>/dev/null \
+        | grep "upstream_rq_5xx" \
+        | grep "inbound" \
+        | awk -F'|' '{print $NF}' \
+        | awk '{sum += $1} END {print int(sum)}' 2>/dev/null || echo "0")
+
+      echo "Canary 5xx error count : ${ERROR_COUNT}"
+      echo "Error threshold        : ${ERROR_THRESHOLD}"
+
+      if [ "${ERROR_COUNT}" -gt "${ERROR_THRESHOLD}" ]; then
+        echo "AUTOMATIC ROLLBACK: Error threshold exceeded at 25% traffic."
+        kubectl apply -f k8s/virtual-service-100-0.yaml
+        exit 1
+      fi
+      echo "Health check passed at 25% canary traffic."
+    - |
+      kubectl get pods -n "${KUBE_NAMESPACE}" -l version=canary
+  needs:
+    - shift-traffic-25-canary
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# STAGE: traffic-100-canary — MANUAL GATE
+# =============================================================================
+promote-canary-full:
+  stage: traffic-100-canary
+  script:
+    - |
+      echo "Full promotion: routing 100% traffic to canary (v2)..."
+      kubectl apply -f k8s/virtual-service-0-100.yaml
+    - |
+      sleep 10
+      kubectl get virtualservice myapp-vs -n "${KUBE_NAMESPACE}" -o yaml
+    - |
+      echo "=== Post-Promotion Deployment State ==="
+      kubectl get deployments -n "${KUBE_NAMESPACE}"
+      kubectl get pods -n "${KUBE_NAMESPACE}" -l app=myapp -o wide
+      echo "NOTE: myapp-stable (v1) intentionally kept running for rollback capability."
+  needs:
+    - canary-health-check-25
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# EMERGENCY ROLLBACK — manual, available after canary deployment
+# =============================================================================
+emergency-rollback:
+  stage: traffic-10-canary
+  script:
+    - |
+      echo "=== EMERGENCY ROLLBACK INITIATED ==="
+      kubectl apply -f k8s/virtual-service-100-0.yaml
+    - |
+      sleep 5
+      kubectl get virtualservice myapp-vs -n "${KUBE_NAMESPACE}" -o yaml
+      echo "All traffic is now on stable (v1)."
+    - |
+      kubectl get pods -n "${KUBE_NAMESPACE}" -l app=myapp
+  needs:
+    - deploy-canary
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# STAGE: verify
+# =============================================================================
+post-promotion-verify:
+  stage: verify
+  script:
+    - |
+      echo "=== Post-Promotion Verification ==="
+      kubectl get pods -n "${KUBE_NAMESPACE}" -l app=myapp
+      NOT_READY=$(kubectl get pods -n "${KUBE_NAMESPACE}" -l version=canary \
+        --no-headers | grep -v "Running" | wc -l)
+      if [ "$NOT_READY" -gt "0" ]; then
+        echo "ERROR: ${NOT_READY} canary pod(s) are not in Running state."
+        exit 1
+      fi
+      echo "All canary pods are Running."
+    - |
+      kubectl rollout status deployment/myapp-canary -n "${KUBE_NAMESPACE}"
+    - |
+      kubectl get endpoints myapp-svc -n "${KUBE_NAMESPACE}"
+    - |
+      kubectl get virtualservice myapp-vs -n "${KUBE_NAMESPACE}" \
+        -o jsonpath='{.spec.http[0].route}' | python3 -m json.tool
+    - |
+      if ! command -v istioctl > /dev/null 2>&1; then
+        curl -sL https://istio.io/downloadIstio | ISTIO_VERSION=1.20.0 sh -
+        export PATH="${PWD}/istio-1.20.0/bin:${PATH}"
+      fi
+      istioctl analyze -n "${KUBE_NAMESPACE}"
+      echo "=== All post-promotion checks passed ==="
+  needs:
+    - promote-canary-full
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
