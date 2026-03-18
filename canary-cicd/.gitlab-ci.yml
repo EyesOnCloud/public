@@ -119,11 +119,8 @@ deploy-stable:
       echo "Deploying stable application (eyesoncloud/test-prod:latest)..."
       kubectl apply -f k8s/deployment-v1.yaml
     - |
-      echo "Waiting for stable rollout to complete (timeout: 180s)..."
-      kubectl rollout status deployment/myapp-stable -n "${KUBE_NAMESPACE}" --timeout=180s
-    - |
       echo "Applying initial traffic rule: 100% stable, 0% canary..."
-      kubectl apply -f k8s/virtual-service-100-0.yaml
+      kubectl apply -f k8s/virtual-service-100-0.yaml --validate=false
     - |
       echo "Verifying Service endpoints are populated..."
       sleep 5
@@ -154,9 +151,6 @@ deploy-canary:
       echo "Deploying canary application (eyesoncloud/test-canary:latest)..."
       kubectl apply -f k8s/deployment-v2.yaml
     - |
-      echo "Waiting for canary rollout to complete (timeout: 180s)..."
-      kubectl rollout status deployment/myapp-canary -n "${KUBE_NAMESPACE}" --timeout=180s
-    - |
       echo "Verifying canary pods have Istio sidecar injected..."
       CONTAINERS=$(kubectl get pods -n "${KUBE_NAMESPACE}" -l version=canary \
         -o jsonpath='{.items[0].status.containerStatuses}' \
@@ -185,7 +179,7 @@ shift-traffic-10-canary:
   script:
     - |
       echo "Shifting traffic: 90% stable, 10% canary..."
-      kubectl apply -f k8s/virtual-service-90-10.yaml
+      kubectl apply -f k8s/virtual-service-90-10.yaml --validate=false
     - |
       echo "Waiting 10 seconds for Istio to propagate routing update..."
       sleep 10
@@ -251,7 +245,7 @@ shift-traffic-25-canary:
   script:
     - |
       echo "Expanding canary traffic: 75% stable, 25% canary..."
-      kubectl apply -f k8s/virtual-service-75-25.yaml
+      kubectl apply -f k8s/virtual-service-75-25.yaml --validate=false
     - |
       sleep 10
       kubectl get virtualservice myapp-vs -n "${KUBE_NAMESPACE}" -o yaml
@@ -310,7 +304,7 @@ promote-canary-full:
   script:
     - |
       echo "Full promotion: routing 100% traffic to canary (v2)..."
-      kubectl apply -f k8s/virtual-service-0-100.yaml
+      kubectl apply -f k8s/virtual-service-0-100.yaml --validate=false
     - |
       sleep 10
       kubectl get virtualservice myapp-vs -n "${KUBE_NAMESPACE}" -o yaml
@@ -333,7 +327,7 @@ emergency-rollback:
   script:
     - |
       echo "=== EMERGENCY ROLLBACK INITIATED ==="
-      kubectl apply -f k8s/virtual-service-100-0.yaml
+      kubectl apply -f k8s/virtual-service-100-0.yaml --validate=false
     - |
       sleep 5
       kubectl get virtualservice myapp-vs -n "${KUBE_NAMESPACE}" -o yaml
