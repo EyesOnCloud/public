@@ -1,0 +1,35 @@
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "Stage 1: Checkout"
+            }
+        }
+        stage('Build') {
+            steps {
+                echo "Stage 2: Build"
+                sh 'mkdir -p build && echo "artifact" > build/app.jar'
+            }
+        }
+        stage('Test') {
+            steps {
+                echo "Stage 3: Test"
+                sh 'test -f build/app.jar && echo "artifact found - OK"'
+            }
+        }
+        stage('Package') {
+            steps {
+                echo "Stage 4: Package"
+                sh 'cp build/app.jar build/app-release.jar'
+                echo "Package complete"
+            }
+        }
+    }
+    post {
+        always {
+            sh 'rm -rf build/'
+            echo "Cleanup done"
+        }
+    }
+}
