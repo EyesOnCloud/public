@@ -1,0 +1,53 @@
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "Checkout complete"
+            }
+        }
+        stage('Build') {
+            steps {
+                echo "Build complete"
+                sh 'mkdir -p build && echo "artifact" > build/app.jar'
+            }
+        }
+        stage('Verify') {
+            parallel {
+                stage('Unit Tests') {
+                    steps {
+                        echo "Unit tests running..."
+                        sleep 4
+                        echo "Unit tests: 24/24 passed"
+                    }
+                }
+                stage('Integration Tests') {
+                    steps {
+                        echo "Integration tests running..."
+                        sleep 6
+                        echo "Integration tests: 8/8 passed"
+                    }
+                }
+                stage('Code Quality') {
+                    steps {
+                        echo "Code quality running..."
+                        sleep 3
+                        echo "Quality gate: PASSED"
+                    }
+                }
+            }
+        }
+        stage('Package') {
+            steps {
+                echo "Package complete"
+                sh 'cp build/app.jar build/app-release.jar'
+            }
+        }
+    }
+    post {
+        always {
+            sh 'rm -rf build/'
+            echo "Cleanup done"
+        }
+    }
+}
