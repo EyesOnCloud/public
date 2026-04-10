@@ -1,0 +1,78 @@
+pipeline {
+    agent any
+
+    environment {
+        BUILD_TYPE = 'snapshot'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "Checkout complete"
+                echo "Build type: ${BUILD_TYPE}"
+            }
+        }
+        stage('Build') {
+            steps {
+                echo "Build complete"
+                sh 'mkdir -p build && echo "artifact" > build/app.jar'
+            }
+            post {
+                success { echo "Build PASSED" }
+                failure { echo "Build FAILED" }
+            }
+        }
+        stage('Verify') {
+            parallel {
+                stage('Unit Tests') {
+                    steps {
+                        echo "Unit tests running..."
+                        sleep 2
+                        echo "Unit tests passed"
+                    }
+                }
+                stage('Integration Tests') {
+                    when {
+                        environment name: 'BUILD_TYPE', value: 'release'
+                    }
+                    steps {
+                        echo "Integration tests running..."
+                        sleep 3
+                        echo "Integration tests passed"
+                    }
+                }
+            }
+        }
+        stage('Deploy Staging') {
+            when {
+                environment name: 'BUILD_TYPE', value: 'snapshot'
+            }
+            steps {
+                echo "Deploying to staging..."
+                echo "Staging deploy complete"
+            }
+        }
+        stage('Deploy Production') {
+            when {
+                environment name: 'BUILD_TYPE', value: 'release'
+            }
+            steps {
+                echo "Deploying to production..."
+                echo "Production deploy complete"
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'rm -rf build/'
+            echo "Cleanup done"
+        }
+        success {
+            echo "Pipeline PASSED - BUILD_TYPE: ${BUILD_TYPE}"
+        }
+        failure {
+            echo "Pipeline FAILED"
+        }
+    }
+}
