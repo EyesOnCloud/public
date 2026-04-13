@@ -1,0 +1,55 @@
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                echo "=== Payment Gateway Feature Build ==="
+                echo "Branch : ${GIT_BRANCH}"
+                echo "Commit : ${GIT_COMMIT}"
+            }
+        }
+
+        stage('Build') {
+            steps {
+                echo "Building Payment Gateway Feature branch..."
+                sh 'ls -la'
+                sh 'mkdir -p build && echo "feature-build" > build/output.txt'
+                echo "Build complete"
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo "Running tests on feature branch..."
+                sh 'test -f build/output.txt && echo "Build output found - OK"'
+                echo "Payment Gateway Feature branch tests passed"
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo "Deploying to staging..."
+                echo "This stage only runs on main branch"
+            }
+        }
+
+    }
+
+    post {
+        always {
+            sh 'rm -rf build/'
+            echo "Cleanup done on ${GIT_BRANCH}"
+        }
+        success {
+            echo "Payment Gateway Feature branch build PASSED: ${GIT_BRANCH}"
+        }
+        failure {
+            echo "Payment Gateway Feature branch build FAILED: ${GIT_BRANCH}"
+        }
+    }
+}
