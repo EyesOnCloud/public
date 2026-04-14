@@ -38,7 +38,7 @@ pipeline {
             steps {
                 echo "=== Test in Node.js Container ==="
                 sh 'test -f dist/bundle.js && echo "Bundle found - OK" || echo "Bundle missing"'
-                sh 'node -e "console.log(\"Tests passed for $APP_NAME $VERSION\")"'
+                sh 'node -e "console.log(\'Tests passed for $APP_NAME $VERSION\')"'
                 echo "Tests complete"
             }
         }
