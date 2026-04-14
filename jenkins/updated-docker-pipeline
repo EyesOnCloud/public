@@ -57,7 +57,7 @@ pipeline {
                 echo "=== Python Test Stage ==="
                 sh 'python3 --version'
                 sh 'pip3 --version'
-                sh 'python3 -c "print(\"Python tests passed\")"'
+                sh "python3 -c \"print('Python tests passed')\""
                 echo "Python tests complete"
             }
         }
