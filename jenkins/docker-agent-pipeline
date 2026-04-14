@@ -1,0 +1,36 @@
+pipeline {
+    agent {
+        docker {
+            image 'node:18-alpine'
+        }
+    }
+
+    stages {
+        stage('Environment Check') {
+            steps {
+                echo "=== Docker Container Environment ==="
+                sh 'node --version'
+                sh 'npm --version'
+                sh 'whoami'
+                sh 'hostname'
+                sh 'cat /etc/os-release | grep PRETTY_NAME'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                echo "Running build inside Node.js container..."
+                sh 'mkdir -p build'
+                sh 'echo "{ \\"name\\": \\"demo\\", \\"version\\": \\"1.0.0\\" }" > build/package.json'
+                sh 'cat build/package.json'
+                echo "Build complete"
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Container pipeline complete"
+        }
+    }
+}
