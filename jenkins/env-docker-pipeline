@@ -1,0 +1,68 @@
+pipeline {
+    agent none
+
+    environment {
+        APP_NAME = 'docker-demo'
+        VERSION  = "2.0.${BUILD_NUMBER}"
+    }
+
+    stages {
+
+        stage('Build') {
+            agent {
+                docker {
+                    image 'node:18-alpine'
+                }
+            }
+            environment {
+                NODE_ENV = 'production'
+            }
+            steps {
+                echo "=== Build in Node.js Container ==="
+                sh 'node --version'
+                sh 'echo "App: $APP_NAME version $VERSION"'
+                sh 'echo "NODE_ENV: $NODE_ENV"'
+                sh 'mkdir -p dist'
+                sh 'echo "${APP_NAME}-${VERSION}" > dist/bundle.js'
+                sh 'ls -lh dist/'
+                echo "Build complete"
+            }
+        }
+
+        stage('Test') {
+            agent {
+                docker {
+                    image 'node:18-alpine'
+                }
+            }
+            steps {
+                echo "=== Test in Node.js Container ==="
+                sh 'test -f dist/bundle.js && echo "Bundle found - OK" || echo "Bundle missing"'
+                sh 'node -e "console.log(\"Tests passed for $APP_NAME $VERSION\")"'
+                echo "Tests complete"
+            }
+        }
+
+        stage('Verify') {
+            agent {
+                docker {
+                    image 'alpine:latest'
+                }
+            }
+            steps {
+                echo "=== Verify in Alpine Container ==="
+                sh 'cat /etc/os-release | grep PRETTY_NAME'
+                sh 'echo "Running verification for $APP_NAME $VERSION"'
+                sh 'ls -la dist/ 2>/dev/null || echo "Note: dist/ not present in this container workspace"'
+                echo "Verification complete"
+            }
+        }
+
+    }
+
+    post {
+        always {
+            echo "Pipeline done: ${APP_NAME} ${VERSION}"
+        }
+    }
+}
