@@ -1,0 +1,72 @@
+pipeline {
+    agent none
+
+    stages {
+
+        stage('Java Build') {
+            agent {
+                docker {
+                    image 'maven:3.9-eclipse-temurin-17-alpine'
+                }
+            }
+            steps {
+                echo "=== Java Build Stage ==="
+                sh 'java -version'
+                sh 'mvn --version'
+                sh 'mkdir -p build/java'
+                sh 'echo "java-artifact-${BUILD_NUMBER}" > build/java/app.jar'
+                sh 'cat build/java/app.jar'
+                echo "Java build complete"
+            }
+            post {
+                always {
+                    echo "Java stage done - container will be removed"
+                }
+            }
+        }
+
+        stage('Node Build') {
+            agent {
+                docker {
+                    image 'node:18-alpine'
+                }
+            }
+            steps {
+                echo "=== Node Build Stage ==="
+                sh 'node --version'
+                sh 'npm --version'
+                sh 'mkdir -p build/node'
+                sh 'echo "node-artifact-${BUILD_NUMBER}" > build/node/app.js'
+                sh 'cat build/node/app.js'
+                echo "Node build complete"
+            }
+            post {
+                always {
+                    echo "Node stage done - container will be removed"
+                }
+            }
+        }
+
+        stage('Python Test') {
+            agent {
+                docker {
+                    image 'python:3.11-alpine'
+                }
+            }
+            steps {
+                echo "=== Python Test Stage ==="
+                sh 'python3 --version'
+                sh 'pip3 --version'
+                sh 'python3 -c "print(\"Python tests passed\")"'
+                echo "Python tests complete"
+            }
+        }
+
+    }
+
+    post {
+        always {
+            echo "Multi-container pipeline complete"
+        }
+    }
+}
