@@ -1,0 +1,8 @@
+ORD-10044|{"order_id":"ORD-10044","customer_id":"CUST-1001","total":89.99,"status":"PLACED"}
+ORD-10045|{"order_id":"ORD-10045","customer_id":"CUST-2002","total":249.50,"status":"PLACED"}
+ORD-10044|{"order_id":"ORD-10044","customer_id":"CUST-1001","total":89.99,"status":"PAYMENT_CONFIRMED"}
+ORD-10046|{"order_id":"ORD-10046","customer_id":"CUST-3003","total":599.00,"status":"PLACED"}
+ORD-10045|{"order_id":"ORD-10045","customer_id":"CUST-2002","total":249.50,"status":"PAYMENT_CONFIRMED"}
+ORD-10044|{"order_id":"ORD-10044","customer_id":"CUST-1001","total":89.99,"status":"SHIPPED"}
+ORD-10046|{"order_id":"ORD-10046","customer_id":"CUST-3003","total":599.00,"status":"PAYMENT_CONFIRMED"}
+ORD-10044|{"order_id":"ORD-10044","customer_id":"CUST-1001","total":89.99,"status":"DELIVERED"}
