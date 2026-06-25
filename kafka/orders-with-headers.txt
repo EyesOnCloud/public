@@ -1,0 +1,3 @@
+event-type:order_placed,source-service:order-api,correlation-id:abc-123-def     ORD-10047|{"order_id":"ORD-10047","customer_id":"CUST-4004","total":145.00,"status":"PLACED"}
+event-type:payment_confirmed,source-service:payment-api,correlation-id:abc-123-def      ORD-10047|{"order_id":"ORD-10047","customer_id":"CUST-4004","total":145.00,"status":"PAYMENT_CONFIRMED"}
+event-type:order_shipped,source-service:fulfillment-api,correlation-id:abc-123-def,retry-count:0        ORD-10047|{"order_id":"ORD-10047","customer_id":"CUST-4004","total":145.00,"status":"SHIPPED"}
