@@ -20,7 +20,7 @@ orders = [
     {
         "order_id": "ORD-20001",
         "customer_id": "CUST-5501",
-        "customer_email": "alice@example.com",
+        "customer_email": "john@example.com",
         "items": [
             {"sku": "SKU-100", "name": "Wireless Keyboard", "qty": 1, "unit_price": 79.99},
             {"sku": "SKU-101", "name": "Mouse Pad", "qty": 2, "unit_price": 12.99}
@@ -41,7 +41,7 @@ orders = [
     {
         "order_id": "ORD-20002",
         "customer_id": "CUST-6612",
-        "customer_email": "bob@example.com",
+        "customer_email": "alex@example.com",
         "items": [
             {"sku": "SKU-200", "name": "USB-C Hub", "qty": 1, "unit_price": 49.99}
         ],
@@ -61,7 +61,7 @@ orders = [
     {
         "order_id": "ORD-20003",
         "customer_id": "CUST-5501",
-        "customer_email": "alice@example.com",
+        "customer_email": "fedrick@example.com",
         "items": [
             {"sku": "SKU-300", "name": "Monitor Stand", "qty": 1, "unit_price": 199.99}
         ],
@@ -86,7 +86,7 @@ for order in orders:
     value = json.dumps(order)  # dict -> JSON string -> bytes via UTF-8
 
     producer.produce(
-        topic='orders.message-anatomy',
+        topic='orders-message-anatomy',
         key=key.encode('utf-8'),
         value=value.encode('utf-8'),
         headers={
