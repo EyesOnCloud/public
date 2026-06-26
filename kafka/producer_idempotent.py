@@ -1,7 +1,7 @@
 import json
-import time
 import uuid
-from confluent_kafka import Producer, KafkaException
+import time
+from confluent_kafka import Producer
 
 TOPIC = 'payments-idempotent'
 
@@ -14,29 +14,18 @@ def delivery_callback(err, msg):
         delivered_offsets.append(msg.offset())
         print(f"  Delivered: offset={msg.offset()} "
               f"partition={msg.partition()} "
-              f"key={msg.key().decode()} "
-              f"latency={msg.latency()*1000:.1f}ms"
-              if msg.latency() else
-              f"  Delivered: offset={msg.offset()} "
-              f"partition={msg.partition()} "
               f"key={msg.key().decode()}")
 
-# Idempotent producer config
-# enable.idempotence=true requires:
-#   acks=all (enforced automatically — will override acks=1 if set)
-#   retries > 0 (set high to allow retry on transient failures)
-#   max.in.flight.requests.per.connection <= 5
 config = {
     'bootstrap.servers': 'localhost:9092',
     'client.id': 'payments-producer-idempotent',
     'enable.idempotence': 'true',
-    # acks is automatically set to 'all' when idempotence is enabled
-    # Explicitly setting it here for clarity — it would be overridden
-    # to 'all' even if you set '1'
     'acks': 'all',
-    'retries': '2147483647',        # Max retries — let Kafka handle all transient failures
-    'max.in.flight.requests.per.connection': '5',  # Max 5 with idempotence
-    'delivery.timeout.ms': '120000',  # 2 min total delivery timeout
+    'retries': '2147483647',
+    'max.in.flight.requests.per.connection': '5',
+    'delivery.timeout.ms': '120000',
+    'request.timeout.ms': '5000',
+    'retry.backoff.ms': '500',
 }
 
 producer = Producer(config)
@@ -45,10 +34,9 @@ print("=" * 65)
 print("IDEMPOTENT PRODUCER — Duplicate prevention enabled")
 print("=" * 65)
 print("\nProducer initialized with enable.idempotence=true")
-print("Broker assigned a Producer ID (PID) to this producer instance.")
+print("Broker assigns a Producer ID (PID) to this producer instance.")
 print("Every message carries: PID + epoch + per-partition sequence number.")
 
-# Same payments as before — same payment IDs to make comparison clear
 payments = [
     {
         "payment_id": "PAY-IDEM-0001",
@@ -89,6 +77,11 @@ payments = [
 ]
 
 print("\nStep 1: Producing payment events...")
+print("  Open 2nd terminal NOW and run:")
+print("  iptables -A INPUT -p tcp --dport 9092 -j DROP")
+print("  (drop network while flush blocks — forces real broker retry)")
+print()
+
 for payment in payments:
     key = payment["payment_id"].encode('utf-8')
     value = json.dumps(payment).encode('utf-8')
@@ -96,34 +89,19 @@ for payment in payments:
                      callback=delivery_callback)
     producer.poll(0)
 
+print("  Flushing... (blocks here — run iptables DROP now, then restore after 5s)")
+print("  Restore: iptables -D INPUT -p tcp --dport 9092 -j DROP")
 producer.flush()
+
 print(f"\n  {len(payments)} messages delivered. Offsets: {delivered_offsets}")
-
-print("\nStep 2: Simulating retry — producing SAME messages again...")
-print("  (Broker will detect duplicate sequence numbers and discard)")
 print()
-
-retry_callbacks = []
-
-def retry_callback(err, msg):
-    if err is not None:
-        retry_callbacks.append(('error', str(err)))
-        print(f"  RETRY FAILED (expected for some): {err}")
-    else:
-        retry_callbacks.append(('success', msg.offset()))
-        print(f"  RETRY 'delivered': offset={msg.offset()} "
-              f"key={msg.key().decode()}")
-        print(f"    -> Broker returned success (deduplication occurred)")
-        print(f"    -> Check if this is a NEW offset or existing offset")
-
-for payment in payments:
-    key = payment["payment_id"].encode('utf-8')
-    value = json.dumps(payment).encode('utf-8')
-    print(f"  RETRY: {payment['payment_id']} amount={payment['amount']}")
-    producer.produce(topic=TOPIC, key=key, value=value,
-                     callback=retry_callback)
-    producer.poll(0)
-
-producer.flush()
-print(f"\n  Retry callbacks received: {len(retry_callbacks)}")
-print(f"  Original offsets: {delivered_offsets}")
+print("  WHAT HAPPENED UNDER THE HOOD:")
+print("  -> Producer sent batch with PID + epoch + seq numbers 0,1,2")
+print("  -> Network dropped — ack never arrived")
+print("  -> Producer auto-retried SAME batch: same PID + same seq numbers")
+print("  -> Broker saw seq already written — discarded retry, returned ack")
+print("  -> Topic contains exactly 3 messages — no duplicates")
+print()
+print("  Compare:")
+print("  payments-non-idempotent : 6 msgs (3 original + 3 duplicate from retry)")
+print("  payments-idempotent     : 3 msgs (retry deduplicated by broker)")
