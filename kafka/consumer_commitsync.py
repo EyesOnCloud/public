@@ -5,48 +5,86 @@ from confluent_kafka import Consumer
 
 consumer = Consumer({
     'bootstrap.servers': 'localhost:9092',
-    'group.id': 'order-processor-crash-sim',
+    'group.id': 'order-processor-commitsync',
     'auto.offset.reset': 'earliest',
-    'enable.auto.commit': 'false',
+    'enable.auto.commit': 'false',      # Critical — no background commits
+    'max.poll.interval.ms': '30000',
 })
 
 consumer.subscribe(['orders-commit-lab'])
 
-print("CRASH SIMULATION CONSUMER")
-print("Crashes AFTER processing message #3 but BEFORE commitSync")
-print("Offset for message #3 will NOT be committed")
-print("Restart will reprocess message #3 — at-least-once in action")
-print("=" * 55)
+print("COMMITSYNC CONSUMER STARTED")
+print("enable.auto.commit=false — offsets committed manually after each message")
+print("Sequence: POLL -> PROCESS -> COMMIT -> repeat")
+print("=" * 65)
 
 processed = 0
+committed_offset = None
+simulated_db = {}
 
 try:
     while True:
-        msg = consumer.poll(timeout=5.0)
+        msg = consumer.poll(timeout=2.0)
+
         if msg is None:
-            break
+            if processed > 0:
+                print(f"No new messages. Total processed: {processed}")
+                break
+            continue
+
         if msg.error():
+            print(f"Consumer error: {msg.error()}")
             continue
 
         order = json.loads(msg.value().decode())
+        order_id = order['order_id']
 
-        print(f"\nPOLLED:    offset={msg.offset()} order={order['order_id']}")
-        print(f"  [PROCESSING] DB write...", flush=True)
-        time.sleep(0.2)
-        print(f"  [PROCESSED]  order={order['order_id']} written to DB")
+        print(f"\nPOLLED:     partition={msg.partition()} "
+              f"offset={msg.offset()} "
+              f"order={order_id} "
+              f"amount=${order['amount']}")
 
-        if processed == 2:   # 0-indexed — this is the 3rd message
-            print(f"\n  *** SIMULATED CRASH (SIGKILL / OOM) ***")
-            print(f"  order={order['order_id']} at offset={msg.offset()} IS in DB")
-            print(f"  commitSync was NOT called — offset={msg.offset()} NOT committed")
-            print(f"  Broker still thinks last committed = offset {msg.offset() - 1 + 1}")
-            print(f"  Restart will reprocess from offset {msg.offset()}")
-            os._exit(1)   # Hard kill — no finally, no consumer.close()
-                          # Simulates kernel OOM kill or SIGKILL
+        # --- PROCESS ---
+        # Crash here = offset not committed = reprocess on restart (safe)
+        print(f"  [PROCESSING] Writing to DB...", flush=True)
+        time.sleep(0.3)
 
-        consumer.commit(asynchronous=False)
-        print(f"  [COMMITTED]  offset={msg.offset()}")
+        simulated_db[order_id] = {
+            'order_id': order_id,
+            'amount': order['amount'],
+            'processed_at': time.time()
+        }
+        print(f"  [PROCESSED]  order={order_id} written to DB")
+
+        # --- COMMIT ---
+        # asynchronous=False = commitSync
+        # Blocks until broker writes offset to __consumer_offsets
+        # Exception here = offset not committed = reprocess on restart (safe)
+        # Both failure modes are safe — at-least-once guaranteed
+        try:
+            consumer.commit(asynchronous=False)
+            committed_offset = msg.offset() + 1
+            print(f"  [COMMITTED]  offset={msg.offset()} committed. "
+                  f"Next read from offset {committed_offset}")
+        except Exception as commit_err:
+            print(f"  [COMMIT FAILED] {commit_err}")
+            print(f"  Offset not committed — will reprocess on restart")
+            raise
+
         processed += 1
 
+        if processed >= 10:
+            print(f"\nReached 10 messages. Stopping for inspection.")
+            break
+
+except KeyboardInterrupt:
+    print(f"\nInterrupted.")
+except Exception as e:
+    print(f"\nError: {e}")
 finally:
-    pass
+    consumer.close()
+    print(f"\n{'='*65}")
+    print(f"Consumer closed cleanly.")
+    print(f"Messages processed this run : {processed}")
+    print(f"Last committed offset       : {committed_offset}")
+    print(f"Orders in simulated DB      : {len(simulated_db)}")
