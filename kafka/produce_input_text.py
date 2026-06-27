@@ -1,0 +1,23 @@
+import time
+from confluent_kafka import Producer
+
+p = Producer({
+    'bootstrap.servers': '192.168.100.21:9092,192.168.100.22:9092,192.168.100.23:9092'
+})
+
+sentences = [
+    "kafka enables real-time stream processing at enterprise scale",
+    "payment fraud detection requires low latency kafka consumers",
+    "distributed systems use kafka for reliable event streaming",
+    "kafka partitions provide ordered message delivery guarantees",
+    "stream processing topologies transform and aggregate events",
+]
+
+i = 0
+while True:
+    sentence = sentences[i % len(sentences)]
+    p.produce('input-text', value=sentence.encode())
+    p.poll(0)
+    print(f"Produced: {sentence}")
+    time.sleep(2)
+    i += 1
