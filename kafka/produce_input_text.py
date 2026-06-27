@@ -14,10 +14,22 @@ sentences = [
 ]
 
 i = 0
+
+print("[PRODUCER] Starting continuous stream...\n")
+
 while True:
     sentence = sentences[i % len(sentences)]
-    p.produce('input-text', value=sentence.encode())
+
+    p.produce(
+        'input-text',
+        value=sentence.encode('utf-8')
+    )
+
+    # trigger delivery callbacks + internal flush
     p.poll(0)
+
     print(f"Produced: {sentence}")
-    time.sleep(2)
+
     i += 1
+
+    time.sleep(1)
