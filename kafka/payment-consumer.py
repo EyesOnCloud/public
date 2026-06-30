@@ -72,7 +72,6 @@ def main():
 
     avro_deserializer = AvroDeserializer(
         schema_registry_client,
-        value_deserializer = dict_to_payment,
     )
 
     consumer = DeserializingConsumer({
