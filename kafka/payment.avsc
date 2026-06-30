@@ -1,0 +1,75 @@
+{
+  "type": "record",
+  "name": "Payment",
+  "namespace": "com.lab16.payments",
+  "doc": "Payment transaction event for order processing",
+  "fields": [
+    {
+      "name": "payment_id",
+      "type": "string",
+      "doc": "Unique payment identifier (UUID)"
+    },
+    {
+      "name": "order_id",
+      "type": "string",
+      "doc": "Associated order identifier"
+    },
+    {
+      "name": "customer_id",
+      "type": "string",
+      "doc": "Customer who initiated payment"
+    },
+    {
+      "name": "amount",
+      "type": "double",
+      "doc": "Payment amount in USD"
+    },
+    {
+      "name": "currency",
+      "type": "string",
+      "doc": "ISO 4217 currency code"
+    },
+    {
+      "name": "payment_method",
+      "type": {
+        "type": "enum",
+        "name": "PaymentMethod",
+        "symbols": ["CREDIT_CARD", "DEBIT_CARD", "BANK_TRANSFER", "DIGITAL_WALLET"]
+      },
+      "doc": "Payment method used"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "PaymentStatus",
+        "symbols": ["INITIATED", "PROCESSING", "COMPLETED", "FAILED", "REFUNDED"]
+      },
+      "doc": "Current payment status"
+    },
+    {
+      "name": "merchant_id",
+      "type": "string",
+      "doc": "Merchant receiving the payment"
+    },
+    {
+      "name": "region",
+      "type": "string",
+      "doc": "Processing region"
+    },
+    {
+      "name": "timestamp_ms",
+      "type": "long",
+      "doc": "Event timestamp in milliseconds since epoch"
+    },
+    {
+      "name": "metadata",
+      "type": {
+        "type": "map",
+        "values": "string"
+      },
+      "default": {},
+      "doc": "Optional key-value metadata (e.g. device_type, ip_hash)"
+    }
+  ]
+}
