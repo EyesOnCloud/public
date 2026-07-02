@@ -20,7 +20,7 @@ def on_commit(err, partitions):
             commit_stats['errors'].append(str(err))
             print(f"\n  [COMMIT ASYNC FAILED] {err}")
             print(f"  Real broker error — offset uncommitted")
-            print(f"  Consumer already advanced — restart reprocesses from last good offset"
+            print(f"  Consumer already advanced — restart reprocesses from last good offset")
         else:
             commit_stats['succeeded'] += 1
             for p in partitions:
@@ -32,7 +32,7 @@ consumer = Consumer({
     'bootstrap.servers': 'localhost:9092',
     'group.id': 'order-processor-commitasync',
     'auto.offset.reset': 'earliest',
-    'enable.auto.commit': 'false',
+    'enable.auto.commit':  False,
     'on_commit': on_commit,
 })
 
