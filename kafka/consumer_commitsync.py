@@ -7,7 +7,8 @@ consumer = Consumer({
     'bootstrap.servers': 'localhost:9092',
     'group.id': 'order-processor-commitsync',
     'auto.offset.reset': 'earliest',
-    'enable.auto.commit': 'false',      # Critical — no background commits
+    'enable.auto.commit': False,      # Critical — no background commits
+    'session.timeout.ms': 10000,
     'max.poll.interval.ms': '30000',
 })
 
