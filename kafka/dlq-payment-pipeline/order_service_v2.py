@@ -104,7 +104,7 @@ def valid_order(order_id, customer_name, email, amount, card_last4, sku, item_na
 
 LAB_SCENARIOS = {
     '1': {
-        'label':       'Order 1 — VALID | $150 | Card 4242',
+        'label':       'Order 1 VALID | $150 | Card 4242',
         'category':    'VALID',
         'description': 'Valid order → payment succeeds → processes normally',
         'order_id':    'ORD-LAB19-001',
@@ -112,7 +112,7 @@ LAB_SCENARIOS = {
                                    150.00, '4242', 'SKU-LAPTOP', 'Laptop Pro 15"'),
     },
     '2': {
-        'label':       'Order 2 — POISON | Missing customer_id field',
+        'label':       'Order 2 POISON | Missing customer_id field',
         'category':    'POISON',
         'description': 'customer_id field completely absent → schema validation fails → DLQ',
         'order_id':    'ORD-LAB19-002',
@@ -129,7 +129,7 @@ LAB_SCENARIOS = {
         },
     },
     '3': {
-        'label':       'Order 3 — VALID | $299 | Card 4242',
+        'label':       'Order 3 VALID | $299 | Card 4242',
         'category':    'VALID',
         'description': 'Valid order → payment succeeds → processes normally',
         'order_id':    'ORD-LAB19-003',
@@ -137,7 +137,7 @@ LAB_SCENARIOS = {
                                    299.00, '4242', 'SKU-HEADSET', 'Noise Cancelling Headset'),
     },
     '4': {
-        'label':       'Order 4 — POISON | Negative amount (-$500)',
+        'label':       'Order 4 POISON | Negative amount (-$500)',
         'category':    'POISON',
         'description': 'amount = -500 → negative amount business rule → DLQ',
         'order_id':    'ORD-LAB19-004',
@@ -154,7 +154,7 @@ LAB_SCENARIOS = {
         },
     },
     '5': {
-        'label':       'Order 5 — VALID | $89 | Card 4242',
+        'label':       'Order 5 VALID | $89 | Card 4242',
         'category':    'VALID',
         'description': 'Valid order → payment succeeds → processes normally',
         'order_id':    'ORD-LAB19-005',
@@ -162,7 +162,7 @@ LAB_SCENARIOS = {
                                    89.00, '4242', 'SKU-KEYBOARD', 'Mechanical Keyboard'),
     },
     '6': {
-        'label':       'Order 6 — POISON | Invalid card format (card_last4 = "ABCD")',
+        'label':       'Order 6 POISON | Invalid card format (card_last4 = "ABCD")',
         'category':    'POISON',
         'description': 'card_last4 contains letters → format validation fails → DLQ',
         'order_id':    'ORD-LAB19-006',
@@ -183,7 +183,7 @@ LAB_SCENARIOS = {
         },
     },
     '7': {
-        'label':       'Order 7 — VALID | $175 | Card 4242',
+        'label':       'Order 7 VALID | $175 | Card 4242',
         'category':    'VALID',
         'description': 'Valid order → payment succeeds → processes normally',
         'order_id':    'ORD-LAB19-007',
@@ -191,7 +191,7 @@ LAB_SCENARIOS = {
                                    175.00, '4242', 'SKU-WEBCAM', 'HD Webcam 4K'),
     },
     '8': {
-        'label':       'Order 8 — POISON | Exceeds daily limit ($15,000)',
+        'label':       'Order 8 POISON | Exceeds daily limit ($15,000)',
         'category':    'POISON',
         'description': 'amount > $10,000 daily limit → policy violation → DLQ',
         'order_id':    'ORD-LAB19-008',
@@ -208,7 +208,7 @@ LAB_SCENARIOS = {
         },
     },
     '9': {
-        'label':       'Order 9 — VALID | $550 | Card 4242',
+        'label':       'Order 9 VALID | $550 | Card 4242',
         'category':    'VALID',
         'description': 'Valid order → payment succeeds → processes normally',
         'order_id':    'ORD-LAB19-009',
@@ -216,7 +216,7 @@ LAB_SCENARIOS = {
                                    550.00, '4242', 'SKU-TABLET', 'iPad Pro 12.9"'),
     },
     '10': {
-        'label':       'Order 10 — VALID | $225 | Card 4242',
+        'label':       'Order 10 VALID | $225 | Card 4242',
         'category':    'VALID',
         'description': 'Valid order → payment succeeds → processes normally',
         'order_id':    'ORD-LAB19-010',
