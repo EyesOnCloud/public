@@ -1,8 +1,5 @@
 """
 Configuration for the DLQ payment pipeline lab.
-
-Extends the Lab 18 choreography saga configuration with
-DLQ-specific topics and settings.
 """
 
 BOOTSTRAP_SERVERS = (
