@@ -1,6 +1,8 @@
 name: Artifacts Upload Download Demo
 
-on: workflow_dispatch
+on:
+  push:
+    branches: [ main ]
 
 jobs:
   generate-output:
