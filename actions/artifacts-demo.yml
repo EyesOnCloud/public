@@ -49,4 +49,3 @@ jobs:
           if [ "$FAILED" -gt "0" ]; then
             echo "::warning::$FAILED test(s) failed in this run"
           fi
-EOF
