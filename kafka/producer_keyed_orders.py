@@ -6,7 +6,7 @@ from confluent_kafka import Producer
 
 TOPIC = 'orders-group-demo'
 MESSAGE_COUNT = 100
-BOOTSTRAP_SERVERS = '192.168.100.21:9092,192.168.100.22:9092,192.168.100.23:9092'
+BOOTSTRAP_SERVERS = '192.168.100.11:9092,192.168.100.12:9092,192.168.100.13:9092'
 
 def delivery_callback(err, msg):
     if err:
