@@ -16,7 +16,7 @@ from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
 
 BOOTSTRAP_SERVERS = os.environ.get(
-    "BOOTSTRAP_SERVERS", "192.168.100.21:9092,192.168.100.22:9092,192.168.100.23:9092"
+    "BOOTSTRAP_SERVERS", "192.168.100.11:9092,192.168.100.12:9092,192.168.100.13:9092"
 )
 TOPIC = "raw-orders"
 
