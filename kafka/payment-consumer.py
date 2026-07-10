@@ -19,8 +19,8 @@ from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroDeserializer
 from confluent_kafka.serialization import StringDeserializer
 
-BOOTSTRAP_SERVERS   = os.environ.get("BOOTSTRAP_SERVERS",   "192.168.100.21:9092,192.168.100.22:9092,192.168.100.23:9092")
-SCHEMA_REGISTRY_URL = os.environ.get("SCHEMA_REGISTRY_URL", "http://192.168.100.21:8081")
+BOOTSTRAP_SERVERS   = os.environ.get("BOOTSTRAP_SERVERS",   "192.168.100.11:9092,192.168.100.12:9092,192.168.100.13:9092")
+SCHEMA_REGISTRY_URL = os.environ.get("SCHEMA_REGISTRY_URL", "http://192.168.100.11:8081")
 TOPIC               = "payments"
 GROUP_ID            = "payment-processor-group"
 
