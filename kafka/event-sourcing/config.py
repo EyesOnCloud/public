@@ -4,9 +4,9 @@ Centralized configuration for the order event sourcing microservices.
 
 # 3-node Kafka cluster bootstrap servers
 BOOTSTRAP_SERVERS = (
-    '192.168.100.21:9092,'
-    '192.168.100.22:9092,'
-    '192.168.100.23:9092'
+    '192.168.100.11:9092,'
+    '192.168.100.12:9092,'
+    '192.168.100.13:9092'
 )
 
 # Topic configuration
