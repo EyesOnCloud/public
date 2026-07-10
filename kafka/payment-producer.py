@@ -21,8 +21,8 @@ from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
 from confluent_kafka.serialization import StringSerializer
 
-BOOTSTRAP_SERVERS   = os.environ.get("BOOTSTRAP_SERVERS",   "192.168.100.21:9092,192.168.100.22:9092,192.168.100.23:9092")
-SCHEMA_REGISTRY_URL = os.environ.get("SCHEMA_REGISTRY_URL", "http://192.168.100.21:8081")
+BOOTSTRAP_SERVERS   = os.environ.get("BOOTSTRAP_SERVERS",   "192.168.100.11:9092,192.168.100.12:9092,192.168.100.13:9092")
+SCHEMA_REGISTRY_URL = os.environ.get("SCHEMA_REGISTRY_URL", "http://192.168.100.11:8081")
 TOPIC               = "payments"
 
 CUSTOMERS = [f"CUST_{str(i).zfill(4)}" for i in range(1, 21)]
