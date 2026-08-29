@@ -7,8 +7,8 @@ description: Run TaskFlow's nine-point release-readiness check against a set of 
 
 Run these nine checks, in order, against the changed files. Report a
 real pass, fail, or "could not determine" for every single one — never
-a vague overall summary. A check marked "could not determine" is not the
-same as a pass; say explicitly what would be needed to complete it.
+a vague overall summary. A check marked "could not determine" is not
+the same as a pass; say explicitly what would be needed to complete it.
 Where a check genuinely does not apply to the files under review (for
 example, no migration file was touched), report "not applicable" and
 say why — do not silently omit it or count it as a pass.
