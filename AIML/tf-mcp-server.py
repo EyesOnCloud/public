@@ -5,7 +5,14 @@ import sqlite3
 import sys
 import time
 
-from mcp.server.fastmcp import FastMCP
+# mcp 1.x named this class FastMCP; mcp 2.x renamed it to MCPServer and
+# moved it to a different module. This works against either version
+# without pinning one -- try the current (2.x) location first, fall
+# back to the old (1.x) one.
+try:
+    from mcp.server.mcpserver import MCPServer
+except ImportError:
+    from mcp.server.fastmcp import FastMCP as MCPServer
 
 REPO_ROOT = os.environ.get("TASKFLOW_REPO", os.getcwd())
 DB_PATH = os.environ.get("TASKFLOW_DB", os.path.join(REPO_ROOT, "taskflow.db"))
@@ -13,7 +20,7 @@ REQUESTS_PATH = os.path.join(REPO_ROOT, ".taskflow-ops", "change_requests.json")
 
 os.makedirs(os.path.dirname(REQUESTS_PATH), exist_ok=True)
 
-mcp = FastMCP("taskflow-ops")
+mcp = MCPServer("taskflow-ops")
 
 
 # ---------------------------------------------------------------------------
