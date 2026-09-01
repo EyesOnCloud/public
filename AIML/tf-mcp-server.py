@@ -5,10 +5,6 @@ import sqlite3
 import sys
 import time
 
-# mcp 1.x named this class FastMCP; mcp 2.x renamed it to MCPServer and
-# moved it to a different module. This works against either version
-# without pinning one -- try the current (2.x) location first, fall
-# back to the old (1.x) one.
 try:
     from mcp.server.mcpserver import MCPServer
 except ImportError:
