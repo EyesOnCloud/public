@@ -1,0 +1,17 @@
+{
+  "description": "TaskFlow production-readiness enforcement",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/validate_release_report.py\"",
+            "timeout": 30,
+            "statusMessage": "Validating production-readiness report"
+          }
+        ]
+      }
+    ]
+  }
+}
