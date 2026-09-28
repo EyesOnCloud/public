@@ -1,49 +1,161 @@
 ---
 name: production-readiness
 description: >
-  Run the nine-point production-readiness checklist against a changed
-  TaskFlow service before claiming a change is ready to ship. Use when
-  asked "is this ready to merge/ship/release", before ending a session
-  that modified app/ or migrations/, or when explicitly invoked as
-  /production-readiness. Do not use for unrelated code review requests
-  that aren't about release readiness.
+  Run TaskFlow's production-readiness validation before claiming a code
+  change is ready to merge, ship, release, or deploy. Use when reviewing
+  release readiness, when explicitly asked for a production-readiness
+  check, or after changes to app/ or migrations/ that are being prepared
+  for completion. Do not use for simple explanations or unrelated
+  code-reading requests.
 ---
 
-# Production Readiness Check
+# TaskFlow Production Readiness
 
-Run these nine steps **in order**. Do not skip a step because it looks
-irrelevant to this change — record it as PASS with a one-line reason
-instead. Do not mark anything PASS without evidence (a command you ran,
-a file you read) cited next to it.
+Use this workflow when determining whether a TaskFlow change is ready
+to merge, ship, release, or deploy.
 
-1. **Identify changed services.** Run `scripts/changed_services.sh`.
-   Record the output verbatim.
-2. **Find affected tests.** Run `scripts/affected_tests.sh` against the
-   changed files from step 1.
-3. **Run focused validation.** Run `pytest -q` scoped to exactly the
-   test files step 2 found. Record the pass/fail counts. Zero tests
-   collected is a FAIL for this step, not a skip.
-4. **Check API compatibility.** If `app/main.py` changed, read
-   `reference/api-compatibility.md` and diff the route table against
-   the previous commit.
-5. **Review database changes.** If anything under `migrations/`
-   changed, confirm the new/modified file defines both `upgrade()` and
-   a `downgrade()` that is not a no-op.
-6. **Check error handling.** Grep every changed file for bare
-   `except:` and `except Exception` blocks that don't log or re-raise.
-7. **Verify logs and metrics.** Grep every changed file's `logger.*`
-   calls for `assignee_email` or `description` per AGENTS.md's logging
-   rule.
-8. **Review security risks.** Read `reference/security-checklist.md`
-   and apply it to every changed file.
-9. **Generate the structured release report.** Use
-   `reference/report-template.md`. Write it to `RELEASE_REPORT.md` at
-   the repo root. Every one of steps 1–8 gets exactly one line: `PASS`,
-   `FAIL`, or `WAIVED: <reason>`. The final line is `VERDICT: READY` or
-   `VERDICT: NOT READY` — READY requires zero unwaived FAILs.
+Follow the steps in order.
 
-A Stop hook reads `RELEASE_REPORT.md` before this session is allowed to
-end. An incomplete, missing, or malformed report — or an unwaived FAIL
-under a READY verdict — will block completion and hand the reason back
-to you. Fix the real problem the report identifies; do not edit the
-report to make the hook pass.
+Do not mark a check PASS without evidence from repository files or a
+command that was actually executed.
+
+## 1. Identify changed services
+
+Run:
+
+python .agents/skills/production-readiness/scripts/changed_services.py
+
+Record the changed application files.
+
+If no application or migration files changed, record that result
+explicitly.
+
+## 2. Find affected tests
+
+Run:
+
+python .agents/skills/production-readiness/scripts/affected_tests.py <changed-files>
+
+Use the files identified in step 1.
+
+Record every affected test file.
+
+If application code changed and no relevant test is found, mark this
+check FAIL.
+
+## 3. Run focused validation
+
+Run pytest against exactly the affected tests identified in step 2.
+
+Example:
+
+pytest -q tests/test_notify.py
+
+Record the pytest summary.
+
+A changed application module with no runnable affected tests is a FAIL,
+not a skipped check.
+
+## 4. Check API compatibility
+
+If app/main.py changed, read:
+
+references/api-compatibility.md
+
+Compare the changed routes and externally visible request/response
+behavior against the baseline.
+
+If app/main.py did not change:
+
+WAIVED — app/main.py unchanged.
+
+## 5. Review database changes
+
+If migrations/ changed:
+
+- inspect every changed migration;
+- verify upgrade() exists;
+- verify downgrade() exists;
+- verify downgrade() performs a real reversal;
+- run migration tests when available.
+
+Follow AGENTS.md.
+
+If migrations/ did not change:
+
+WAIVED — no migration changes.
+
+## 6. Check error handling
+
+Inspect every changed Python file.
+
+Check for:
+
+- bare except:
+- broadly swallowed exceptions;
+- except Exception blocks that neither log nor re-raise;
+- retry loops that hide permanent failures;
+- error paths that silently return success.
+
+Record the evidence.
+
+## 7. Verify logs and observability
+
+Inspect logger calls in changed files.
+
+Follow AGENTS.md.
+
+Specifically verify that:
+
+- assignee_email is not logged;
+- description is not logged;
+- values derived from those fields are not logged.
+
+Mark FAIL if changed code introduces prohibited logging.
+
+## 8. Review security and reliability risks
+
+Read:
+
+references/security-checklist.md
+
+Apply the checklist to all changed files.
+
+Record findings and commands used.
+
+## 9. Generate the release report
+
+Read:
+
+assets/report-template.md
+
+Write the final report to:
+
+RELEASE_REPORT.md
+
+Do not create a READY verdict unless all required checks are PASS or
+have an explicit acceptable WAIVED reason.
+
+Do not edit the report simply to satisfy the Stop hook.
+
+Fix the underlying problem first.
+
+## Required terminal artifact
+
+The workflow is not complete until RELEASE_REPORT.md exists and contains:
+
+- checks 22 through 29;
+- one status for every check;
+- evidence for every status;
+- a final VERDICT line.
+
+Allowed statuses:
+
+PASS
+FAIL
+WAIVED
+
+Allowed verdicts:
+
+READY
+NOT READY
