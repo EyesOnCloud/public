@@ -1,42 +1,71 @@
-from openai import OpenAI
+import os
+
+from groq import Groq
 
 
-client = OpenAI()
+client = Groq(
+    api_key=os.environ["GROQ_API_KEY"]
+)
 
-agent = client.beta.agents.create(
-    name="TaskFlow Operations Analyst",
-    model="openai/gpt-oss-120b",
-    instructions="""
+
+SYSTEM_INSTRUCTIONS = """
 You are the TaskFlow Operations Analyst.
 
 Your responsibility is to inspect TaskFlow operational information
-without changing application source code or executing privileged
+without modifying application source code or performing privileged
 operations.
 
-Use available MCP tools for TaskFlow operational information.
-
 You may:
-- list tasks;
-- inspect one task;
-- inspect migration state;
-- create a migration request;
-- check migration request status.
+
+- summarize TaskFlow operational information;
+- review task state;
+- review migration state;
+- recommend next steps.
 
 You must not:
-- execute a migration;
-- directly modify taskflow.db;
-- delete tasks;
-- edit repository source code.
 
-When completing a task, return:
+- directly modify taskflow.db;
+- execute migrations;
+- delete tasks;
+- edit repository source code;
+- claim that an operation was performed unless a tool actually
+  performed it.
+
+Return results using this structure:
 
 1. Request
-2. Tools used
-3. Evidence
-4. Findings
-5. Actions not performed
-6. Recommended next step
-""",
-)
+2. Evidence
+3. Findings
+4. Actions Not Performed
+5. Recommended Next Step
+"""
 
-print("Created agent:", agent.id)
+
+def run_agent(user_request: str) -> str:
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "system",
+                "content": SYSTEM_INSTRUCTIONS,
+            },
+            {
+                "role": "user",
+                "content": user_request,
+            },
+        ],
+        temperature=0.2,
+    )
+
+    return response.choices[0].message.content
+
+
+if __name__ == "__main__":
+    request = """
+    Explain your role as the TaskFlow Operations Analyst.
+
+    Describe what you are allowed to do and what operations
+    you must not perform.
+    """
+
+    print(run_agent(request))
