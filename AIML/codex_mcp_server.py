@@ -3,10 +3,9 @@ import os
 import sqlite3
 import uuid
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
-
-server = FastMCP("taskflow-ops")
+server = MCPServer("taskflow-ops")
 
 REPO_ROOT = Path(
     os.environ.get("TASKFLOW_REPO", Path.cwd())
