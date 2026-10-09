@@ -133,6 +133,8 @@
       ],
       "properties": {
         "publicAccess": "None"
+        "defaultEncryptionScope": "$account-encryption-key",
+        "denyEncryptionScopeOverride": false
       }
     }
   ],
