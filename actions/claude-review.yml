@@ -33,8 +33,22 @@ jobs:
 
       - name: Run Claude Code review
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
+          # Pre-flight checks
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "::error::CLAUDE_CODE_OAUTH_TOKEN secret is not set for this repository"; exit 1
+          fi
+          if [ ! -f review-schema.json ]; then
+            echo "::error::review-schema.json is not committed to this branch"; exit 1
+          fi
+          if [ ! -s pr.diff ]; then
+            echo "::warning::PR diff is empty - nothing to review"
+            echo '{"findings":[]}' > findings.json; exit 0
+          fi
+
+          # Run the review without stopping the script on error, so we can report it
+          set +e
           claude -p \
             --output-format json \
             --json-schema "$(cat review-schema.json)" \
@@ -42,9 +56,21 @@ jobs:
             --max-turns 15 \
             "Review the pull request diff supplied on stdin. Follow CLAUDE.md. Report only actionable defects introduced by these changes, with file, line, evidence and recommendation. Use an empty findings array if none. Do not modify files." \
             < pr.diff > review.json
+          RC=$?
+          set -e
+
+          # Show the real error if Claude Code failed
+          if [ $RC -ne 0 ] || [ "$(jq -r '.is_error' review.json 2>/dev/null)" = "true" ]; then
+            echo "::error::Claude Code failed (exit code $RC)"
+            cat review.json
+            exit 1
+          fi
+
+          # Extract schema-validated findings
           jq -e '.structured_output' review.json > findings.json \
             || { echo "::error::No structured output returned"; cat review.json; exit 1; }
           echo "Findings: $(jq '.findings | length' findings.json)"
+          echo "Cost (USD): $(jq '.total_cost_usd' review.json)"
 
       - name: Publish summary and PR comment
         if: always() && hashFiles('findings.json') != ''
