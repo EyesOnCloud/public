@@ -1,54 +1,87 @@
 name: Claude Code Review
 
-
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-
 permissions:
   contents: read
-
+  pull-requests: write
 
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
 
+      - name: Build PR diff
+        run: |
+          git diff --no-ext-diff "origin/${{ github.base_ref }}...HEAD" > pr.diff
+          echo "Diff size: $(wc -l < pr.diff) lines"
 
-      - name: Generate review findings
+      - name: Run Claude Code review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          git diff --no-ext-diff \
-            "origin/${{ github.base_ref }}...HEAD" > pr.diff
-
-
           claude -p \
             --output-format json \
             --json-schema "$(cat review-schema.json)" \
-            "Review the supplied pull request diff in pr.diff. Follow CLAUDE.md. Report only actionable defects introduced by the changes. Use an empty findings array if no actionable issues are found. Do not modify files." \
-            > review.json
+            --allowedTools "Read,Grep,Glob" \
+            --max-turns 15 \
+            "Review the pull request diff supplied on stdin. Follow CLAUDE.md. Report only actionable defects introduced by these changes, with file, line, evidence and recommendation. Use an empty findings array if none. Do not modify files." \
+            < pr.diff > review.json
+          jq -e '.structured_output' review.json > findings.json \
+            || { echo "::error::No structured output returned"; cat review.json; exit 1; }
+          echo "Findings: $(jq '.findings | length' findings.json)"
 
+      - name: Publish summary and PR comment
+        if: always() && hashFiles('findings.json') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COUNT=$(jq '.findings | length' findings.json)
+          {
+            echo "## Claude Code Review"
+            echo ""
+            if [ "$COUNT" -eq 0 ]; then
+              echo "No actionable findings."
+            else
+              echo "| Severity | File | Line | Finding | Recommendation |"
+              echo "|---|---|---|---|---|"
+              jq -r '.findings[] | "| \(.severity) | `\(.file)` | \(.line) | \(.title) | \(.recommendation) |"' findings.json
+            fi
+          } > comment.md
+          cat comment.md >> "$GITHUB_STEP_SUMMARY"
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} --body-file comment.md
 
       - name: Upload review output
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: claude-review-output
-          path: review.json
+          path: |
+            review.json
+            findings.json
           if-no-files-found: ignore
+
+      - name: Quality gate (fail on high/critical findings)
+        run: |
+          HIGH=$(jq '[.findings[] | select(.severity=="high" or .severity=="critical")] | length' findings.json)
+          echo "High/critical findings: $HIGH"
+          if [ "$HIGH" -gt 0 ]; then
+            echo "::error::Claude review found $HIGH high/critical issue(s)"
+            exit 1
+          fi
