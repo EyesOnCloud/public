@@ -1,0 +1,54 @@
+name: Claude Code Review
+
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+
+permissions:
+  contents: read
+
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+
+      - name: Generate review findings
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          git diff --no-ext-diff \
+            "origin/${{ github.base_ref }}...HEAD" > pr.diff
+
+
+          claude -p \
+            --output-format json \
+            --json-schema "$(cat review-schema.json)" \
+            "Review the supplied pull request diff in pr.diff. Follow CLAUDE.md. Report only actionable defects introduced by the changes. Use an empty findings array if no actionable issues are found. Do not modify files." \
+            > review.json
+
+
+      - name: Upload review output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-review-output
+          path: review.json
+          if-no-files-found: ignore
