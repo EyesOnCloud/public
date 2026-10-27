@@ -1,0 +1,107 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    name: Build and Test Application
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: |
+          pytest test_app.py -v --tb=short
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "CI Pipeline completed successfully!"
+          echo "All tests passed"
+          echo "Ready for deployment"
+EOF
+
+This workflow runs automatically on every push and pull request to test the code.
+
+STEP 14: Create CD Workflow File (Jenkins Trigger)
+Create the CD pipeline workflow that triggers Jenkins:
+
+cat > .github/workflows/cd.yml << 'EOF'
+name: CD Pipeline - Trigger Jenkins
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  trigger-jenkins-deployment:
+    runs-on: ubuntu-latest
+    name: Trigger Jenkins Deployment
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get commit information
+        id: commit
+        run: |
+          echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "author=${{ github.actor }}" >> $GITHUB_OUTPUT
+          echo "message=$(git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
+
+      - name: Display commit info
+        run: |
+          echo "Commit SHA: ${{ steps.commit.outputs.sha }}"
+          echo "Author: ${{ steps.commit.outputs.author }}"
+          echo "Message: ${{ steps.commit.outputs.message }}"
+
+      - name: Trigger Jenkins Build
+        run: |
+          echo "Triggering Jenkins deployment job..."
+          curl -v -X POST \
+            http://${{ secrets.JENKINS_HOST }}:8080/job/github-actions-deploy/build \
+            --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }} \
+            -F token=${{ secrets.JENKINS_BUILD_TOKEN }} \
+            -F cause="GitHub Actions trigger - Commit ${{ steps.commit.outputs.sha }} by ${{ steps.commit.outputs.author }}"
+          
+          echo ""
+          echo "Jenkins job triggered successfully"
+
+      - name: Deployment notification
+        run: |
+          echo "=========================================="
+          echo "CD Pipeline: Jenkins Deployment Triggered"
+          echo "=========================================="
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ steps.commit.outputs.sha }}"
+          echo "Author: ${{ steps.commit.outputs.author }}"
+          echo ""
+          echo "Check Jenkins at: http://${{ secrets.JENKINS_HOST }}:8080"
+          echo "Job: github-actions-deploy"
+          echo "=========================================="
